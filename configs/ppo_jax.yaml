@@ -1,0 +1,34 @@
+# JAX PPO Hyperparameters for DisasterEnv
+# Optimised for RTX 4060 (8 GB VRAM)
+#
+# Usage:
+#   python -m disaster_sim.rl.train_jax --config configs/ppo_jax.yaml
+
+preset: medium
+agent_type: drone
+fov_size: 15
+max_steps: 1000
+
+# Parallelism
+n_envs: 1024           # parallel environments (safe for 8 GB VRAM)
+n_steps: 128           # rollout length per update
+total_timesteps: 2000000
+
+# PPO
+learning_rate: 0.0003
+n_epochs: 4
+n_minibatches: 8
+gamma: 0.99
+gae_lambda: 0.95
+clip_range: 0.2
+ent_coef: 0.01
+vf_coef: 0.5
+max_grad_norm: 0.5
+anneal_lr: true
+
+# Network
+features_dim: 128
+
+# City pool (pre-generated on CPU, transferred to GPU once)
+n_cities: 128
+city_seed: 42
