@@ -1,0 +1,38 @@
+# Small city preset — 50×50, for unit tests and debugging
+width: 50
+height: 50
+seed: 42
+
+major_road_spacing: 12
+minor_road_spacing: 4
+road_width: 1
+
+building_density: 0.40
+min_building_size: 2
+max_building_size: 4
+
+num_damaged_buildings: 8
+debris_spread: 2
+num_fire_zones: 4
+fire_spread_radius: 1
+
+num_rivers: 0
+river_width: 2
+flood_zone_count: 1
+flood_zone_radius: 5
+
+num_hospitals: 1
+num_charging_stations: 2
+num_parks: 2
+park_radius: 3
+
+num_victims: 10
+victim_severity_distribution:
+  critical: 0.2
+  serious: 0.4
+  stable: 0.4
+victim_time_limit: 300.0
+
+fleet:
+  drone: 2
+  ground_robot: 1

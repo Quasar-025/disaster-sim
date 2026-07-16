@@ -1,0 +1,41 @@
+# Large city preset — 400×400, stress test and demos
+width: 400
+height: 400
+seed: 42
+
+major_road_spacing: 40
+minor_road_spacing: 12
+road_width: 1
+
+building_density: 0.40
+min_building_size: 2
+max_building_size: 8
+
+num_damaged_buildings: 80
+debris_spread: 4
+num_fire_zones: 30
+fire_spread_radius: 3
+
+num_rivers: 2
+river_width: 4
+flood_zone_count: 10
+flood_zone_radius: 12
+
+num_hospitals: 6
+num_charging_stations: 8
+num_parks: 12
+park_radius: 6
+
+num_victims: 150
+victim_severity_distribution:
+  critical: 0.2
+  serious: 0.4
+  stable: 0.4
+victim_time_limit: 800.0
+
+fleet:
+  drone: 8
+  ground_robot: 5
+  ambulance: 3
+  boat: 2
+  heavy_lifter: 2

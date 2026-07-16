@@ -1,0 +1,17 @@
+# PPO Hyperparameters for DisasterEnv (Small)
+env_id: "DisasterEnv-small"
+algo: "ppo"
+total_timesteps: 500000
+
+policy: "CnnPolicy"
+learning_rate: 0.0003
+n_steps: 2048
+batch_size: 1024
+n_epochs: 10
+gamma: 0.99
+gae_lambda: 0.95
+clip_range: 0.2
+ent_coef: 0.01
+
+features_extractor: "DisasterCNN"
+features_dim: 128

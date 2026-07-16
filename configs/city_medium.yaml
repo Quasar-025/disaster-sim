@@ -1,0 +1,38 @@
+# Medium city preset — 200×200, default for training
+width: 200
+height: 200
+seed: 42
+
+major_road_spacing: 25
+minor_road_spacing: 8
+road_width: 1
+
+building_density: 0.45
+min_building_size: 2
+max_building_size: 6
+
+num_damaged_buildings: 30
+debris_spread: 3
+num_fire_zones: 12
+fire_spread_radius: 2
+
+num_rivers: 1
+river_width: 3
+flood_zone_count: 5
+flood_zone_radius: 8
+
+num_hospitals: 3
+num_charging_stations: 4
+num_parks: 6
+park_radius: 4
+
+num_victims: 50
+victim_severity_distribution:
+  critical: 0.2
+  serious: 0.4
+  stable: 0.4
+victim_time_limit: 500.0
+
+fleet:
+  drone: 3
+  ground_robot: 3
