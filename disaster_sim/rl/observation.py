@@ -80,76 +80,41 @@ class ObservationBuilder:
                         sev_val = SEVERITY_DEGRADATION_RATE.get(victim.severity.value, 0.5)
                         obs[4, wr, wc] = sev_val
                         
-        # 5: A* Path
-        from disaster_sim.engine.pathfinding import a_star_search
-        
+        # 5: Target Compass
         target_r, target_c = None, None
         
-        # Determine if current assigned target is still valid to avoid target-swapping jitter
-        current_target_valid = False
-        if hasattr(agent, "assigned_target_pos") and agent.assigned_target_pos is not None:
-            tr, tc = agent.assigned_target_pos
-            if agent.carrying_victim:
-                if (tr, tc) in self.world.city.hospitals:
-                    current_target_valid = True
-            else:
-                for victim_id in agent.local_victims_known:
-                    v = self.world.victims[victim_id]
-                    if v.row == tr and v.col == tc and v.is_alive and not v.rescued:
-                        current_target_valid = True
-                        break
-                        
-        if current_target_valid:
-            target_r, target_c = agent.assigned_target_pos
+        # Decide target
+        if agent.carrying_victim:
+            # Nearest hospital
+            min_dist = float('inf')
+            for hr, hc in self.world.city.hospitals:
+                dist = abs(r - hr) + abs(c - hc)
+                if dist < min_dist:
+                    min_dist = dist
+                    target_r, target_c = hr, hc
         else:
-            # Decide NEW target
-            if agent.carrying_victim:
-                # Nearest hospital
-                min_dist = float('inf')
-                for hr, hc in self.world.city.hospitals:
-                    dist = abs(r - hr) + abs(c - hc)
+            # Nearest known unrescued victim
+            min_dist = float('inf')
+            for victim_id in agent.local_victims_known:
+                v = self.world.victims[victim_id]
+                if v.is_alive and not v.rescued:
+                    dist = abs(r - v.row) + abs(c - v.col)
                     if dist < min_dist:
                         min_dist = dist
-                        target_r, target_c = hr, hc
-            else:
-                # Nearest known unrescued victim
-                min_dist = float('inf')
-                for victim_id in agent.local_victims_known:
-                    v = self.world.victims[victim_id]
-                    if v.is_alive and not v.rescued:
-                        dist = abs(r - v.row) + abs(c - v.col)
-                        if dist < min_dist:
-                            min_dist = dist
-                            target_r, target_c = v.row, v.col
+                        target_r, target_c = v.row, v.col
                         
         if target_r is not None and target_c is not None:
-            recompute = True
-            if getattr(agent, "assigned_target_pos", None) == (target_r, target_c) and hasattr(agent, "path"):
-                recompute = False
-                
-                # If we advanced along the path, remove the node we just stepped on
-                if agent.path and (r, c) == agent.path[0]:
-                    agent.path.pop(0)
-                    
-                # If we are adjacent to the next node, the path is still structurally valid
-                if agent.path:
-                    if abs(agent.path[0][0] - r) + abs(agent.path[0][1] - c) > 1:
-                        recompute = True
-                    else:
-                        # But we must verify if the path is still passable (we might have just discovered an obstacle)
-                        from disaster_sim.engine.pathfinding import is_passable_optimistic
-                        for pr, pc in agent.path:
-                            if not is_passable_optimistic(self.world, agent, pr, pc):
-                                recompute = True
-                                break
-                            
-            if recompute:
-                agent.assigned_target_pos = (target_r, target_c)
-                agent.path = a_star_search(self.world, agent, target_r, target_c)
-                
-            for pr, pc in agent.path:
-                wr, wc = pr - r + self.half_fov, pc - c + self.half_fov
-                if 0 <= wr < self.fov_size and 0 <= wc < self.fov_size:
-                    obs[5, wr, wc] = 1.0
+            agent.assigned_target_pos = (target_r, target_c)
+            
+            # Calculate relative position to the agent
+            rel_r = target_r - r
+            rel_c = target_c - c
+            
+            # Clamp the relative position to the edges of the FOV grid to act as a compass
+            wr = max(0, min(self.fov_size - 1, rel_r + self.half_fov))
+            wc = max(0, min(self.fov_size - 1, rel_c + self.half_fov))
+            
+            # Place the compass point on the grid
+            obs[5, wr, wc] = 1.0
                         
         return obs
