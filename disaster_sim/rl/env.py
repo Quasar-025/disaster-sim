@@ -29,7 +29,7 @@ class DisasterEnv(gym.Env):
     
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 30}
 
-    def __init__(self, preset: str = "small", render_mode: str | None = None, fov_size: int = 15, target_agent_type: str = "drone"):
+    def __init__(self, preset: str = "small", render_mode: str | None = None, fov_size: int = 21, target_agent_type: str = "drone"):
         super().__init__()
         self.preset = preset
         self.render_mode = render_mode

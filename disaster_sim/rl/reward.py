@@ -13,7 +13,7 @@ class RewardCalculator:
     """Calculates dense and sparse rewards for RL agents."""
     
     # Reward weights
-    REWARD_EXPLORE = 0.1       # Per newly revealed cell
+    REWARD_EXPLORE = 0.005       # Per newly revealed cell
     REWARD_RESCUE = 100.0      # Base reward for rescuing a victim
     REWARD_TRANSPORT = 50.0    # Base reward for dropping at hospital
     PENALTY_COLLISION = -5.0   # Penalty for hitting obstacles/agents

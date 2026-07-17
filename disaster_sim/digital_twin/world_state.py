@@ -39,6 +39,8 @@ class AgentState:
     col: float
     battery: float          # 0.0 – max capacity
     status: str             # "idle", "searching", "rescuing", "returning", "charging", "dead"
+    prev_row: Optional[float] = None
+    prev_col: Optional[float] = None
     assigned_victim: Optional[str] = None
     assigned_target_pos: Optional[tuple[int, int]] = None
     carrying_victim: Optional[str] = None

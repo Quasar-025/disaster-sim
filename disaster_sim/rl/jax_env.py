@@ -57,6 +57,8 @@ class EnvState(NamedTuple):
     grid: Any               # [H, W]  int32   — terrain grid (mutable: fire/flood)
     agent_row: Any           # []      int32
     agent_col: Any           # []      int32
+    agent_prev_row: Any      # []      int32   — previous position (anti-oscillation)
+    agent_prev_col: Any      # []      int32
     agent_battery: Any       # []      float32
     agent_alive: Any         # []      bool
     agent_carrying: Any      # []      int32   (-1 = not carrying)
@@ -96,7 +98,7 @@ class EnvParams:
     # Grid
     height: int = 200
     width: int = 200
-    fov_size: int = 15
+    fov_size: int = 21
     max_steps: int = 1000
 
     # Agent
@@ -115,10 +117,12 @@ class EnvParams:
     max_charging: int = 10
 
     # Reward weights
-    reward_explore: float = 0.1
+    reward_explore: float = 0.02
     reward_rescue: float = 100.0
-    penalty_collision: float = -5.0
-    penalty_time: float = -0.01
+    penalty_collision: float = -0.2
+    penalty_time: float = -0.002
+    penalty_revisit: float = -0.003
+    penalty_oscillation: float = -0.03
 
     # Severity → reward multiplier  (critical, serious, stable)
     severity_reward_mult: tuple = (3.0, 2.0, 1.0)
@@ -157,7 +161,7 @@ class CityData(NamedTuple):
 def make_params_for_agent(
     preset: str,
     agent_type: str,
-    fov_size: int = 15,
+    fov_size: int = 21,
     max_steps: int = 1000,
 ) -> EnvParams:
     """Build an ``EnvParams`` tuned for *agent_type* on *preset*."""
@@ -302,6 +306,8 @@ def reset(
         grid=grid,
         agent_row=a_row,
         agent_col=a_col,
+        agent_prev_row=a_row,
+        agent_prev_col=a_col,
         agent_battery=jnp.float32(params.battery_capacity),
         agent_alive=jnp.bool_(True),
         agent_carrying=jnp.int32(-1),
@@ -439,9 +445,14 @@ def step(
 
     # ---- reward ----
     valid_action = ~collision
+    actually_moved = (new_row != state.agent_row) | (new_col != state.agent_col)
+    went_back = (
+        (new_row == state.agent_prev_row) & (new_col == state.agent_prev_col)
+        & actually_moved
+    )
     reward = _compute_reward(
         cells_rev, can_pickup, state.victim_severity,
-        first_rescuable, valid_action, params,
+        first_rescuable, valid_action, actually_moved, went_back, params,
     )
 
     # ---- termination ----
@@ -455,6 +466,8 @@ def step(
         grid=new_grid,
         agent_row=new_row,
         agent_col=new_col,
+        agent_prev_row=jnp.where(actually_moved, state.agent_row, state.agent_prev_row),
+        agent_prev_col=jnp.where(actually_moved, state.agent_col, state.agent_prev_col),
         agent_battery=new_battery,
         agent_alive=agent_alive,
         agent_carrying=new_carrying,
@@ -495,7 +508,7 @@ def step(
 # ===================================================================
 
 def build_observation(state: EnvState, params: EnvParams) -> jax.Array:
-    """Build a ``[6, fov, fov]`` float32 observation tensor.
+    """Build a ``[7, fov, fov]`` float32 observation tensor.
 
     Channels:
         0 — terrain (normalised)
@@ -504,18 +517,19 @@ def build_observation(state: EnvState, params: EnvParams) -> jax.Array:
         3 — other agents (zeros for single-agent training)
         4 — known victims (severity-encoded)
         5 — target compass
+        6 — previous position (symmetry breaking for collision loops)
     """
     fov = params.fov_size
     half = fov // 2
 
-    # Pad for edge-safe slicing.  Out-of-bounds → BUILDING (impassable).
+    # Pad for edge-safe slicing.  Out-of-bounds → -1 (distinct from passable buildings).
     padded_grid = jnp.pad(
         state.grid, half,
-        mode="constant", constant_values=_TERRAIN_BUILDING,
+        mode="constant", constant_values=-1,
     )
     padded_explored = jnp.pad(
         state.explored.astype(jnp.int32), half,
-        mode="constant", constant_values=0,
+        mode="constant", constant_values=1,
     )
 
     # dynamic_slice at (agent_row, agent_col) in padded coords gives
@@ -550,13 +564,26 @@ def build_observation(state: EnvState, params: EnvParams) -> jax.Array:
     # ---- compass ----
     ch5 = _build_compass(state, params, half, fov)
 
-    return jnp.stack([ch0, ch1, ch2, ch3, ch4, ch5])
+    # ---- previous position (memory) ----
+    rel_prev_r = state.agent_prev_row - state.agent_row + half
+    rel_prev_c = state.agent_prev_col - state.agent_col + half
+    safe_prev_r = jnp.clip(rel_prev_r, 0, fov - 1)
+    safe_prev_c = jnp.clip(rel_prev_c, 0, fov - 1)
+    ch6 = jnp.zeros((fov, fov), dtype=jnp.float32).at[safe_prev_r, safe_prev_c].set(1.0)
+
+    return jnp.stack([ch0, ch1, ch2, ch3, ch4, ch5, ch6])
 
 
 def _build_compass(
     state: EnvState, params: EnvParams, half: int, fov: int,
 ) -> jax.Array:
-    """Channel 5: a single 1.0 pixel pointing toward the best target."""
+    """Channel 5: directional gradient pointing toward the best target.
+
+    Instead of a single pixel (easily lost by convolutions), this fills
+    the entire FOV with a gradient whose sign and magnitude indicate the
+    direction and rough distance to the target.  The CNN can learn from
+    this large-scale signal far more easily.
+    """
 
     a_r, a_c = state.agent_row, state.agent_col
 
@@ -578,21 +605,61 @@ def _build_compass(
     has_hosp = state.n_hospitals > 0
 
     carrying = state.agent_carrying >= 0
-    target_r = jnp.where(
-        carrying & has_hosp, state.hospital_row[nh],
-        jnp.where(has_victim, state.victim_row[nv], a_r),
-    )
-    target_c = jnp.where(
-        carrying & has_hosp, state.hospital_col[nh],
-        jnp.where(has_victim, state.victim_col[nv], a_c),
-    )
-    has_target = (carrying & has_hosp) | has_victim
+    # If drone, target unexplored. If rescuer, target hosp/victim.
+    if not params.can_rescue:
+        # DRONE MODE: Nearest unexplored cell
+        rs = jnp.arange(params.height)[:, None]
+        cs = jnp.arange(params.width)[None, :]
+        u_dist = jnp.abs(rs - a_r) + jnp.abs(cs - a_c)
+        
+        # Tie-breaker: prefer cells further from the center (outward exploration)
+        # Tie-breaker: strongly prefer cells in the direction of current momentum
+        # to prevent arbitrary turning and tie-breaking biases.
+        mom_r = state.agent_row - state.agent_prev_row
+        mom_c = state.agent_col - state.agent_prev_col
+        dot = (rs - a_r) * mom_r + (cs - a_c) * mom_c
+        
+        center_r = params.height / 2.0
+        center_c = params.width / 2.0
+        dist_to_center = jnp.abs(rs - center_r) + jnp.abs(cs - center_c)
+        
+        u_dist_float = u_dist.astype(jnp.float32) - dist_to_center * 0.0001 - dot.astype(jnp.float32) * 0.1
+        
+        u_dist_float = jnp.where(~state.explored, u_dist_float, jnp.float32(99999.0))
+        u_flat = jnp.argmin(u_dist_float)
+        target_r = u_flat // params.width
+        target_c = u_flat % params.width
+        has_target = jnp.any(~state.explored)
+    else:
+        # RESCUE MODE
+        target_r = jnp.where(
+            carrying & has_hosp, state.hospital_row[nh],
+            jnp.where(has_victim, state.victim_row[nv], a_r),
+        )
+        target_c = jnp.where(
+            carrying & has_hosp, state.hospital_col[nh],
+            jnp.where(has_victim, state.victim_col[nv], a_c),
+        )
+        has_target = (carrying & has_hosp) | has_victim
 
-    wr = jnp.clip(target_r - a_r + half, 0, fov - 1)
-    wc = jnp.clip(target_c - a_c + half, 0, fov - 1)
+    # ---- Directional gradient compass ----
+    # Compute normalised direction to target
+    dy = (target_r - a_r).astype(jnp.float32)
+    dx = (target_c - a_c).astype(jnp.float32)
+    dist = jnp.maximum(jnp.abs(dy) + jnp.abs(dx), jnp.float32(1.0))
+    dir_r = dy / dist
+    dir_c = dx / dist
+
+    # Build gradient: each pixel's value = dot(direction, offset_from_centre)
+    rows = jnp.arange(fov, dtype=jnp.float32) - float(half)
+    cols = jnp.arange(fov, dtype=jnp.float32) - float(half)
+    grid_r = rows[:, None]  # [fov, 1]
+    grid_c = cols[None, :]  # [1, fov]
+    gradient = (dir_r * grid_r + dir_c * grid_c) / float(half)
+    gradient = jnp.clip(gradient, -1.0, 1.0)
 
     blank = jnp.zeros((fov, fov), dtype=jnp.float32)
-    return jnp.where(has_target, blank.at[wr, wc].set(1.0), blank)
+    return jnp.where(has_target, gradient, blank)
 
 
 # ===================================================================
@@ -647,9 +714,17 @@ def _detect_victims(
 def _compute_reward(
     cells_revealed, rescued_this_step,
     victim_severity, rescued_idx,
-    valid_action, params: EnvParams,
+    valid_action, actually_moved, went_back, params: EnvParams,
 ) -> jax.Array:
-    """Compute scalar step reward."""
+    """Compute scalar step reward.
+
+    Reward table (per step):
+        Exploring (cells > 0):       +cells * 0.02 - 0.002  ≈ +0.2
+        Traversing explored area:    -0.002 - 0.003         = -0.005
+        Oscillating (went back):     -0.002 - 0.003 - 0.03  = -0.035
+        Staying still:               -0.002 - 0.003         = -0.005
+        Collision:                   -0.002 - 5.0           = -5.002
+    """
 
     reward = jnp.float32(params.penalty_time)
     reward = jnp.where(
@@ -657,8 +732,24 @@ def _compute_reward(
         reward + jnp.float32(params.penalty_collision),
         reward,
     )
+    # Exploration reward — per newly revealed cell
     reward = reward + cells_revealed.astype(jnp.float32) * jnp.float32(
         params.reward_explore,
+    )
+
+    # Revisit penalty — any step without new exploration costs a little extra
+    unproductive = cells_revealed == 0
+    reward = jnp.where(
+        unproductive,
+        reward + jnp.float32(params.penalty_revisit),
+        reward,
+    )
+
+    # Oscillation penalty — going back to previous position is heavily punished
+    reward = jnp.where(
+        went_back,
+        reward + jnp.float32(params.penalty_oscillation),
+        reward,
     )
 
     sev_mult = jnp.array(params.severity_reward_mult)

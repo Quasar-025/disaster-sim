@@ -41,6 +41,9 @@ class PhysicsEngine:
 
         valid_action = True
         dr, dc = 0, 0
+        
+        agent.prev_row = agent.row
+        agent.prev_col = agent.col
 
         if action == Action.UP:
             dr = -1

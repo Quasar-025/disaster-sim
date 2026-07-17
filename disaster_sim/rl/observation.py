@@ -14,9 +14,9 @@ from disaster_sim.digital_twin.city_config import Terrain, SEVERITY_DEGRADATION_
 class ObservationBuilder:
     """Builds a spatial observation tensor for a given agent."""
     
-    def __init__(self, world: WorldState, fov_size: int = 15):
+    def __init__(self, world: WorldState, fov_size: int = 21):
         self.world = world
-        self.fov_size = fov_size  # Must be an odd number (e.g. 15x15 window)
+        self.fov_size = fov_size  # Must be an odd number (e.g. 21x21 window)
         self.half_fov = fov_size // 2
         # Now 6 channels: Terrain, Fog, Self, Other Agents, Known Victims, A* Path
         self.num_channels = 6
@@ -54,8 +54,10 @@ class ObservationBuilder:
                     # 1: Fog of war
                     obs[1, wr, wc] = 1.0 if agent.local_explored is not None and agent.local_explored[gr, gc] else 0.0
                 else:
-                    # Out of bounds treated as building (impassable)
-                    obs[0, wr, wc] = float(Terrain.BUILDING.value) / num_terrains
+                    # Out of bounds treated as -1 (impassable and distinct from buildings)
+                    obs[0, wr, wc] = float(-1.0) / num_terrains
+                    # Treat out of bounds as already explored so agents don't try to explore the void
+                    obs[1, wr, wc] = 1.0
                     
         # 2: Self
         obs[2, self.half_fov, self.half_fov] = 1.0
@@ -84,7 +86,27 @@ class ObservationBuilder:
         target_r, target_c = None, None
         
         # Decide target
-        if agent.carrying_victim:
+        if not agent.spec.can_rescue:
+            # DRONE MODE: Nearest unexplored cell
+            unexplored_y, unexplored_x = np.where(~self.world.explored)
+            if len(unexplored_y) > 0:
+                dists = np.abs(unexplored_y - r).astype(float) + np.abs(unexplored_x - c).astype(float)
+                
+                center_r = self.world.height / 2.0
+                center_c = self.world.width / 2.0
+                dist_to_center = np.abs(unexplored_y - center_r) + np.abs(unexplored_x - center_c)
+                
+                prev_r = agent.prev_row if agent.prev_row is not None else agent.row
+                prev_c = agent.prev_col if agent.prev_col is not None else agent.col
+                mom_r = agent.row - prev_r
+                mom_c = agent.col - prev_c
+                dot = (unexplored_y - r) * mom_r + (unexplored_x - c) * mom_c
+                
+                dists = dists.astype(np.float32) + dist_to_center.astype(np.float32) * 0.0001 - dot.astype(np.float32) * 0.1
+                
+                idx = np.argmin(dists)
+                target_r, target_c = unexplored_y[idx], unexplored_x[idx]
+        elif agent.carrying_victim:
             # Nearest hospital
             min_dist = float('inf')
             for hr, hc in self.world.city.hospitals:

@@ -58,7 +58,7 @@ class PPOConfig:
     # Environment
     preset: str = "medium"
     agent_type: str = "drone"
-    fov_size: int = 15
+    fov_size: int = 21
     max_steps: int = 1000
 
     # Parallelism  (tuned for RTX 4060 8 GB)
@@ -102,10 +102,9 @@ class PPOConfig:
 def train(config: PPOConfig, seed: int = 0):
     """Run full PPO training on GPU.  Returns the final ``TrainState``."""
 
-    print("=" * 60)
-    print("  JAX PPO — 100 % GPU Training")
-    print("=" * 60)
-    print(f"  Agent type   : {config.agent_type}")
+    print(f"============================================================")
+    print(f"  JAX PPO - 100 % GPU Training")
+    print(f"============================================================")
     print(f"  City preset  : {config.preset}")
     print(f"  Parallel envs: {config.n_envs}")
     print(f"  Timesteps    : {config.total_timesteps:,}")
@@ -120,26 +119,26 @@ def train(config: PPOConfig, seed: int = 0):
         config.preset, config.agent_type, config.fov_size, config.max_steps,
     )
 
-    print(f"Generating {config.n_cities} cities on CPU …")
+    print("Generating {} cities on CPU ...".format(config.n_cities))
     t0 = time.time()
     city_pool = generate_city_pool(
-        config.preset, config.agent_type,
-        config.n_cities, env_params, config.city_seed,
+        config.preset, config.agent_type, config.n_cities,
+        env_params, seed + 1000,
     )
-    print(f"  Done in {time.time() - t0:.1f}s  —  grid pool: {city_pool.grids.shape}")
+    print(f"  Done in {time.time() - t0:.1f}s  -  grid pool: {city_pool.grids.shape}")
 
     # ---- 2. Network + optimiser ----
     rng = jax.random.PRNGKey(seed)
     network = ActorCritic(action_dim=_NUM_ACTIONS, features_dim=config.features_dim)
 
     rng, init_key = jax.random.split(rng)
-    dummy = jnp.zeros((1, 6, config.fov_size, config.fov_size))
+    dummy = jnp.zeros((1, 7, config.fov_size, config.fov_size))
     net_params = network.init(init_key, dummy)
 
     if config.anneal_lr:
         lr_sched = optax.linear_schedule(
             init_value=config.learning_rate, end_value=0.0,
-            transition_steps=config.n_updates,
+            transition_steps=config.n_updates * config.n_epochs * config.n_minibatches,
         )
     else:
         lr_sched = config.learning_rate
@@ -317,7 +316,7 @@ def train(config: PPOConfig, seed: int = 0):
 
     log_every = max(1, config.n_updates // 20)
     t_start = time.time()
-    print(f"JIT-compiling + training ({config.n_updates} updates) …\n")
+    print(f"JIT-compiling + training ({config.n_updates} updates) ...\n")
 
     for u in range(config.n_updates):
         runner, metrics = jit_update(runner, None)
@@ -333,7 +332,7 @@ def train(config: PPOConfig, seed: int = 0):
                 f"steps {done_steps:>10,}  "
                 f"SPS {sps:>9,.0f}  "
                 f"reward {float(metrics['mean_reward']):+.4f}  "
-                f"π-loss {float(metrics['pi_loss']):.4f}  "
+                f"pi-loss {float(metrics['pi_loss']):.4f}  "
                 f"v-loss {float(metrics['v_loss']):.4f}  "
                 f"entropy {float(metrics['entropy']):.4f}  "
                 f"kl {float(metrics['approx_kl']):.4f}  "
@@ -351,7 +350,7 @@ def train(config: PPOConfig, seed: int = 0):
     print(f"  Avg SPS     : {total_steps / total_time:,.0f}")
     print("=" * 60)
 
-    return runner
+    return runner, metrics
 
 
 # Private — number of actions (avoids circular import)

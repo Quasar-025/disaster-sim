@@ -65,7 +65,7 @@ class SimRunner:
             self.models["ambulance"] = PPO.load("./models/ambulance_ppo")
             
         # Need observation builder for inference
-        self.obs_builder = ObservationBuilder(self.world, fov_size=15)
+        self.obs_builder = ObservationBuilder(self.world, fov_size=21)
 
     async def run_loop(self):
         """Main simulation loop running at ~10Hz."""

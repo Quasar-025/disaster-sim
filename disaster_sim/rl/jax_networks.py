@@ -1,8 +1,9 @@
 """
 Flax Neural Networks for JAX PPO.
 
-Actor-Critic with a CNN backbone matching the existing DisasterCNN
-architecture (two conv layers → dense → separate actor/critic heads).
+Actor-Critic with a CNN backbone. Uses strided convolutions instead of
+max-pooling to preserve fine-grained spatial signals (compass channel).
+Layer normalization improves training stability.
 """
 
 from typing import Sequence
@@ -13,9 +14,9 @@ import jax.numpy as jnp
 
 
 class ActorCritic(nn.Module):
-    """Shared-backbone Actor-Critic for the 6-channel grid observation.
+    """Shared-backbone Actor-Critic for the 7-channel grid observation.
 
-    Input : ``[batch, 6, fov, fov]``   (channels-first)
+    Input : ``[batch, 7, fov, fov]``   (channels-first)
     Output: ``(Categorical distribution, value [batch])``
     """
 
@@ -27,16 +28,21 @@ class ActorCritic(nn.Module):
         # Flax Conv expects channels-last → transpose from NCHW to NHWC
         x = jnp.transpose(x, (0, 2, 3, 1))
 
-        # ---- CNN feature extractor (matches DisasterCNN) ----
-        x = nn.Conv(features=32, kernel_size=(3, 3), padding="SAME")(x)
+        # ---- CNN feature extractor ----
+        # Conv1: strided conv replaces conv+max_pool to preserve compass signal
+        x = nn.Conv(features=32, kernel_size=(3, 3), strides=(2, 2), padding="SAME")(x)
+        x = nn.LayerNorm()(x)
         x = nn.relu(x)
-        x = nn.max_pool(x, window_shape=(2, 2), strides=(2, 2))
 
+        # Conv2: regular conv for higher-level features
         x = nn.Conv(features=64, kernel_size=(3, 3), padding="SAME")(x)
+        x = nn.LayerNorm()(x)
         x = nn.relu(x)
+
         x = x.reshape((x.shape[0], -1))  # flatten spatial dims
 
         x = nn.Dense(self.features_dim)(x)
+        x = nn.LayerNorm()(x)
         x = nn.relu(x)
 
         # ---- Actor head ----

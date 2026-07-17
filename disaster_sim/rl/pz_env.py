@@ -23,7 +23,7 @@ from disaster_sim.digital_twin.disaster_dynamics import DisasterDynamics
 class DisasterMultiAgentEnv(ParallelEnv):
     metadata = {"render_modes": ["human", "rgb_array"], "name": "disaster_pz_v0"}
 
-    def __init__(self, preset="medium", render_mode=None, fov_size=15):
+    def __init__(self, preset="medium", render_mode=None, fov_size=21):
         self.preset = preset
         self.render_mode = render_mode
         self.fov_size = fov_size

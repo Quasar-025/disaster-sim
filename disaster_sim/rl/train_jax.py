@@ -10,8 +10,10 @@ Usage:
 
 from __future__ import annotations
 
-import argparse
 import os
+os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
+
+import argparse
 import pickle
 import sys
 
@@ -29,14 +31,14 @@ def main() -> None:
     )
     parser.add_argument("--preset", type=str, default="medium")
     parser.add_argument("--agent-type", type=str, default="drone")
-    parser.add_argument("--n-envs", type=int, default=1024)
-    parser.add_argument("--total-timesteps", type=int, default=2_000_000)
+    parser.add_argument("--n-envs", type=int, default=256)
+    parser.add_argument("--total-timesteps", type=int, default=20_000_000)
     parser.add_argument("--n-steps", type=int, default=128)
     parser.add_argument("--n-epochs", type=int, default=4)
     parser.add_argument("--n-minibatches", type=int, default=8)
     parser.add_argument("--lr", type=float, default=3e-4)
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--n-cities", type=int, default=128)
+    parser.add_argument("--n-cities", type=int, default=32)
     parser.add_argument("--save-dir", type=str, default="models/")
     args = parser.parse_args()
 
@@ -86,7 +88,7 @@ def main() -> None:
     config = PPOConfig(**cfg_dict)
 
     # ---- Train ----
-    runner_state = train(config, seed=args.seed)
+    runner_state, _ = train(config, seed=args.seed)
 
     # ---- Save ----
     os.makedirs(args.save_dir, exist_ok=True)
