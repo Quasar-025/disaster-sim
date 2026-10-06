@@ -83,17 +83,10 @@ class HospitalOptimizer:
             victim = self.world.victims[vid]
             hospital = self.world.hospitals[hid]
             
-            # Update hospital resources
+            # Just update expected hospital resources. 
+            # The actual transport logic and state updates happen in physics.py when the ambulance arrives.
             hospital.current_patients += 1
             if victim.severity.value == "critical":
                 hospital.available_blood -= 2.0
             else:
                 hospital.available_blood -= 0.5
-                
-            # Update victim state (in a real system, they are now "assigned" for transport)
-            # We just mark them transported to simulate they arrived
-            victim.transported = True
-            victim.rescued = True
-            
-            self.world.total_victims_rescued += 1
-            self.world.total_victims_transported += 1

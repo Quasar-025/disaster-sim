@@ -129,7 +129,7 @@ AGENT_TYPES: dict[str, AgentTypeSpec] = {
         battery_capacity=1000000.0,
         battery_drain_rate=0.0,
         payload_capacity=0.0,
-        sensor_range=5,
+        sensor_range=0,
         can_rescue=False,
         can_clear_debris=False,
         can_transport=False,
@@ -139,8 +139,8 @@ AGENT_TYPES: dict[str, AgentTypeSpec] = {
         name="drone",
         movement_type="aerial",
         speed=3.0,
-        battery_capacity=100.0,
-        battery_drain_rate=0.5,
+        battery_capacity=1000.0,
+        battery_drain_rate=0.2,
         payload_capacity=0.0,
         sensor_range=8,
         can_rescue=False,
@@ -177,7 +177,7 @@ AGENT_TYPES: dict[str, AgentTypeSpec] = {
         can_rescue=True,
         can_clear_debris=False,
         can_transport=True,
-        terrain_passable=frozenset({"ROAD", "HOSPITAL", "CHARGING_STATION"}),
+        terrain_passable=frozenset({"EMPTY", "ROAD", "DEBRIS", "HOSPITAL", "CHARGING_STATION", "PARK", "BUILDING", "WATER", "BUILDING_DAMAGED", "FIRE"}),
     ),
     "boat": AgentTypeSpec(
         name="boat",
@@ -343,7 +343,9 @@ PRESETS: dict[str, CityConfig] = {
         num_victims=10,
         fleet={"drone": 2, "ground_robot": 1},
     ),
-    "medium": CityConfig(),  # 200×200 defaults
+    "medium": CityConfig(
+        fleet={"drone": 3, "ambulance": 2, "ground_robot": 2},
+    ),  # 200×200 defaults + ambulances
     "large": CityConfig(
         width=400, height=400,
         major_road_spacing=40, minor_road_spacing=12,

@@ -46,3 +46,4 @@ tensorboard_logs/
 # Frontend
 frontend/node_modules/
 frontend/dist/
+literature_survey/

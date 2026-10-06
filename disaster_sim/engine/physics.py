@@ -67,7 +67,7 @@ class PhysicsEngine:
                 collision = False
                 if agent.spec.movement_type != "aerial":
                     for other in self.world.active_agents:
-                        if other.id != agent.id and other.spec.movement_type != "aerial":
+                        if other.id != agent.id and other.spec.movement_type != "aerial" and other.agent_type != "traffic_light":
                             if other.grid_pos == (target_r, target_c):
                                 collision = True
                                 break
@@ -104,7 +104,10 @@ class PhysicsEngine:
 
         # Rescuing
         if agent.spec.can_rescue and not agent.carrying_victim:
-            victims = self.world.get_victims_in_range(r, c, radius=1)
+            # Ambulances should be able to rescue victims inside buildings from the road,
+            # so we use their sensor_range (e.g. 3) instead of a hardcoded radius of 1.
+            rescue_radius = agent.spec.sensor_range
+            victims = self.world.get_victims_in_range(r, c, radius=rescue_radius)
             if victims:
                 victim = victims[0]
                 victim.rescued = True

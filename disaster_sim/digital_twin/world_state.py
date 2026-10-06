@@ -245,11 +245,11 @@ class WorldState:
 
     @property
     def avg_battery(self) -> float:
-        """Average battery fraction across active agents."""
-        active = self.active_agents
-        if not active:
+        """Average battery fraction across active fleet agents."""
+        fleet = [a for a in self.active_agents if a.agent_type in ("drone", "ambulance", "boat")]
+        if not fleet:
             return 0.0
-        return sum(a.battery_fraction for a in active) / len(active)
+        return sum(a.battery_fraction for a in fleet) / len(fleet)
 
     def terrain_at(self, row: int, col: int) -> Terrain:
         """Get terrain at position, handling bounds."""
@@ -311,6 +311,7 @@ class WorldState:
             "victims_remaining": self.victims_remaining,
             "victims_rescued": self.victims_rescued_count,
             "victims_detected": self.victims_detected_count,
+            "victims_transported": self.total_victims_transported,
             "total_collisions": self.total_collisions,
             "total_energy": round(self.total_energy_consumed, 2),
             "avg_battery": round(self.avg_battery, 4),
@@ -322,6 +323,9 @@ class WorldState:
                     "battery": round(a.battery_fraction, 4),
                     "status": a.status,
                     "assigned_victim": a.assigned_victim,
+                    "carrying_victim": a.carrying_victim,
+                    "cells_explored": a.cells_explored,
+                    "path": [(r, c) for r, c in a.path[:10]],  # first 10 waypoints
                 }
                 for aid, a in self.agents.items()
             },
@@ -330,9 +334,12 @@ class WorldState:
                     "row": v.row,
                     "col": v.col,
                     "severity": v.severity.value,
+                    "severity_name": v.severity.name.lower() if hasattr(v.severity, 'name') else str(v.severity),
                     "detected": v.detected,
                     "rescued": v.rescued,
+                    "transported": v.transported,
                     "time_remaining": round(v.time_remaining, 1),
+                    "assigned_agent": v.assigned_agent,
                 }
                 for vid, v in self.victims.items()
             },
@@ -345,15 +352,6 @@ class WorldState:
                 }
                 for hid, h in self.hospitals.items()
             },
-            "sensors": {
-                sid: {
-                    "row": s.row,
-                    "col": s.col,
-                    "water_level": round(s.water_level, 2),
-                    "smoke_density": round(s.smoke_density, 2),
-                    "temperature": round(s.temperature, 1),
-                    "aqi": s.air_quality_index,
-                }
-                for sid, s in self.sensors.items()
-            }
+            "explored": self.explored.tolist(),
         }
+

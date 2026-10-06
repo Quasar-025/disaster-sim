@@ -2,104 +2,149 @@ import React, { useState } from 'react';
 import { useDisasterState } from './hooks/useDisasterState';
 import StrategicMap from './components/StrategicMap';
 import TacticalView from './components/TacticalView';
+import StatsPanel from './components/StatsPanel';
+import './App.css';
 
 function App() {
-  const { worldState, connected, injectEarthquake, injectFlood } = useDisasterState();
+  const { 
+    worldState, 
+    connected, 
+    events, 
+    agentTrails, 
+    setSimulationSpeed, 
+    injectEarthquake, 
+    injectFlood 
+  } = useDisasterState();
+  
   const [viewMode, setViewMode] = useState('2D');
   const [selectedCell, setSelectedCell] = useState(null);
+  const [speed, setSpeed] = useState(20);
 
   const handleCellClick = (r, c) => {
     setSelectedCell({ r, c });
   };
 
-  const handleEarthquake = () => {
-    if (selectedCell) {
-      injectEarthquake(selectedCell.r, selectedCell.c, 7.5);
-      setSelectedCell(null);
-    }
-  };
-
-  const handleFlood = () => {
-    if (selectedCell) {
-      injectFlood(selectedCell.r, selectedCell.c, 100);
-      setSelectedCell(null);
-    }
+  const handleSpeedChange = (e) => {
+    const newSpeed = Number(e.target.value);
+    setSpeed(newSpeed);
+    setSimulationSpeed(newSpeed);
   };
 
   return (
-    <div style={{ backgroundColor: '#111', color: '#fff', minHeight: '100vh', padding: '20px', fontFamily: 'sans-serif' }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h1>Disaster Sim <span style={{ color: connected ? '#00ff00' : '#ff0000', fontSize: '0.5em' }}>{connected ? '● LIVE' : '○ OFFLINE'}</span></h1>
+    <div className="app-container">
+      
+      {/* Top Navigation / Header */}
+      <header className="header glass-panel">
+        <h1 className="header-title">
+          Swarm Intelligence Command Center
+        </h1>
         
-        <div>
-          <button 
-            onClick={() => setViewMode('2D')} 
-            style={{ padding: '10px', background: viewMode === '2D' ? '#333' : '#111', color: '#fff', border: '1px solid #555' }}
-          >
-            Strategic 2D Map
-          </button>
-          <button 
-            onClick={() => setViewMode('3D')} 
-            style={{ padding: '10px', background: viewMode === '3D' ? '#333' : '#111', color: '#fff', border: '1px solid #555', marginLeft: '10px' }}
-          >
-            Tactical 3D View
-          </button>
+        <div className="controls-group">
+          <div className="slider-container">
+            <label htmlFor="speed-slider">Sim Speed: {speed}Hz</label>
+            <input 
+              id="speed-slider"
+              type="range" 
+              min="1" max="50" 
+              value={speed} 
+              onChange={handleSpeedChange} 
+              className="speed-slider"
+            />
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px', marginLeft: '16px' }}>
+            <button 
+              onClick={() => setViewMode('2D')} 
+              style={{ 
+                padding: '6px 12px', 
+                background: viewMode === '2D' ? 'rgba(6, 182, 212, 0.2)' : 'rgba(255, 255, 255, 0.05)', 
+                color: viewMode === '2D' ? '#06b6d4' : '#94a3b8', 
+                border: `1px solid ${viewMode === '2D' ? 'rgba(6, 182, 212, 0.5)' : 'transparent'}`,
+                borderRadius: '6px',
+                cursor: 'pointer'
+              }}
+            >
+              2D Strategic
+            </button>
+            <button 
+              onClick={() => setViewMode('3D')} 
+              style={{ 
+                padding: '6px 12px', 
+                background: viewMode === '3D' ? 'rgba(6, 182, 212, 0.2)' : 'rgba(255, 255, 255, 0.05)', 
+                color: viewMode === '3D' ? '#06b6d4' : '#94a3b8', 
+                border: `1px solid ${viewMode === '3D' ? 'rgba(6, 182, 212, 0.5)' : 'transparent'}`,
+                borderRadius: '6px',
+                cursor: 'pointer'
+              }}
+            >
+              3D Tactical
+            </button>
+          </div>
+          
+          <div className="status-indicator">
+            <div className={`status-dot ${connected ? 'status-live' : 'status-offline'}`}></div>
+            <span>{connected ? 'LIVE' : 'OFFLINE'}</span>
+          </div>
         </div>
       </header>
 
-      <div style={{ display: 'flex', gap: '20px' }}>
-        {/* Main Viewport */}
-        <div style={{ flex: 1 }}>
-          {viewMode === '2D' ? (
-            <StrategicMap worldState={worldState} width={700} height={700} onCellClick={handleCellClick} />
-          ) : (
-            <TacticalView worldState={worldState} />
-          )}
-        </div>
-
-        {/* Sidebar Controls */}
-        <div style={{ width: '300px', backgroundColor: '#222', padding: '20px', borderRadius: '8px' }}>
-          <h2>God Mode API</h2>
-          <p style={{ fontSize: '0.9em', color: '#aaa' }}>
-            Click a cell on the 2D map to select a target.
-          </p>
-          
-          <div style={{ marginBottom: '20px', padding: '10px', background: '#333', borderRadius: '4px' }}>
-            Target: {selectedCell ? `(${selectedCell.r}, ${selectedCell.c})` : 'None'}
-          </div>
-
-          <button 
-            disabled={!selectedCell}
-            onClick={handleEarthquake}
-            style={{ display: 'block', width: '100%', padding: '10px', marginBottom: '10px', background: '#8a2b2b', color: 'white', border: 'none', cursor: selectedCell ? 'pointer' : 'not-allowed' }}
-          >
-            Trigger Earthquake
-          </button>
-
-          <button 
-            disabled={!selectedCell}
-            onClick={handleFlood}
-            style={{ display: 'block', width: '100%', padding: '10px', background: '#1a5b7c', color: 'white', border: 'none', cursor: selectedCell ? 'pointer' : 'not-allowed' }}
-          >
-            Trigger Flash Flood
-          </button>
-          
-          <div style={{ marginTop: '30px' }}>
-            <h3>Telemetry</h3>
-            {worldState ? (
-              <ul style={{ listStyle: 'none', padding: 0, color: '#ccc', fontSize: '0.9em' }}>
-                <li>Timestep: {worldState.timestep}</li>
-                <li>Coverage: {(worldState.coverage * 100).toFixed(1)}%</li>
-                <li>Victims Left: {worldState.victims_remaining}</li>
-                <li>Rescued: {worldState.victims_rescued}</li>
-                <li>Agents Active: {Object.keys(worldState.agents || {}).length}</li>
-                <li>Avg Battery: {(worldState.avg_battery * 100).toFixed(1)}%</li>
-              </ul>
+      {/* Main Dashboard Layout */}
+      <div className="main-content">
+        
+        {/* Center: Map Viewport */}
+        <div className="map-container">
+          <div className="map-wrapper">
+            {viewMode === '2D' ? (
+              <StrategicMap 
+                worldState={worldState} 
+                agentTrails={agentTrails}
+                onCellClick={handleCellClick} 
+              />
             ) : (
-              <p>Waiting for data...</p>
+              <TacticalView worldState={worldState} />
             )}
           </div>
+          
+          {/* Quick Disaster Controls Overlay */}
+          <div style={{ position: 'absolute', bottom: '16px', left: '16px', right: '16px', display: 'flex', gap: '16px', pointerEvents: 'none' }}>
+            <div className="glass-panel" style={{ padding: '12px', pointerEvents: 'auto', display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span className="text-muted" style={{ fontSize: '0.85rem' }}>God Mode Injection:</span>
+              <span style={{ fontSize: '0.85rem', color: selectedCell ? '#fff' : '#666', fontFamily: 'var(--font-mono)' }}>
+                Target: {selectedCell ? `[${selectedCell.r}, ${selectedCell.c}]` : '[ Select cell on map ]'}
+              </span>
+              
+              <button 
+                disabled={!selectedCell}
+                onClick={() => { injectEarthquake(selectedCell.r, selectedCell.c, 7.5); setSelectedCell(null); }}
+                style={{ background: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.5)', padding: '6px 16px', borderRadius: '4px', cursor: selectedCell ? 'pointer' : 'not-allowed', opacity: selectedCell ? 1 : 0.5 }}
+              >
+                Earthquake
+              </button>
+
+              <button 
+                disabled={!selectedCell}
+                onClick={() => { injectFlood(selectedCell.r, selectedCell.c, 100); setSelectedCell(null); }}
+                style={{ background: 'rgba(6, 182, 212, 0.2)', color: '#06b6d4', border: '1px solid rgba(6, 182, 212, 0.5)', padding: '6px 16px', borderRadius: '4px', cursor: selectedCell ? 'pointer' : 'not-allowed', opacity: selectedCell ? 1 : 0.5 }}
+              >
+                Flash Flood
+              </button>
+            </div>
+            
+            <div style={{ flex: 1 }}></div>
+            
+            <div className="glass-panel" style={{ padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+               <span className="text-muted mono" style={{ fontSize: '0.9rem' }}>
+                  {worldState ? `T+${worldState.timestep}` : 'T+0'}
+               </span>
+            </div>
+          </div>
         </div>
+
+        {/* Right: Stats & Feed */}
+        <div className="side-panel">
+          <StatsPanel worldState={worldState} events={events} />
+        </div>
+        
       </div>
     </div>
   );
