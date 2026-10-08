@@ -9,12 +9,10 @@ export default function StatsPanel({ worldState, events }) {
 
   // Fleet stats
   const fleetCounts = { drone: 0, ambulance: 0, ground_robot: 0 };
-  let dronesExploring = 0;
   let ambulancesRescuing = 0;
   
   Object.values(agents).forEach(a => {
     if (fleetCounts[a.type] !== undefined) fleetCounts[a.type]++;
-    if (a.type === 'drone') dronesExploring++;
     if (a.type === 'ambulance' && a.carrying_victim) ambulancesRescuing++;
   });
 

@@ -6,146 +6,143 @@ import StatsPanel from './components/StatsPanel';
 import './App.css';
 
 function App() {
-  const { 
-    worldState, 
-    connected, 
-    events, 
-    agentTrails, 
-    setSimulationSpeed, 
-    injectEarthquake, 
-    injectFlood 
+  const {
+    worldState,
+    connected,
+    events,
+    agentTrails,
+    setSimulationSpeed,
+    injectEarthquake,
+    injectFlood,
   } = useDisasterState();
-  
+
   const [viewMode, setViewMode] = useState('2D');
   const [selectedCell, setSelectedCell] = useState(null);
   const [speed, setSpeed] = useState(20);
 
-  const handleCellClick = (r, c) => {
-    setSelectedCell({ r, c });
-  };
-
-  const handleSpeedChange = (e) => {
-    const newSpeed = Number(e.target.value);
+  const handleSpeedChange = (event) => {
+    const newSpeed = Number(event.target.value);
     setSpeed(newSpeed);
     setSimulationSpeed(newSpeed);
   };
 
+  const injectAtSelection = (action) => {
+    if (!selectedCell) return;
+    action(selectedCell.r, selectedCell.c);
+    setSelectedCell(null);
+  };
+
   return (
     <div className="app-container">
-      
-      {/* Top Navigation / Header */}
       <header className="header glass-panel">
-        <h1 className="header-title">
-          Swarm Intelligence Command Center
-        </h1>
-        
+        <div className="brand-lockup">
+          <div className="brand-mark" aria-hidden="true"><span /><span /><span /></div>
+          <div>
+            <p className="eyebrow">Autonomous emergency response</p>
+            <h1 className="header-title">Swarm Command</h1>
+          </div>
+        </div>
+
         <div className="controls-group">
           <div className="slider-container">
-            <label htmlFor="speed-slider">Sim Speed: {speed}Hz</label>
-            <input 
+            <label htmlFor="speed-slider">Simulation <strong>{speed} Hz</strong></label>
+            <input
               id="speed-slider"
-              type="range" 
-              min="1" max="50" 
-              value={speed} 
-              onChange={handleSpeedChange} 
+              type="range"
+              min="1"
+              max="50"
+              value={speed}
+              onChange={handleSpeedChange}
               className="speed-slider"
             />
           </div>
 
-          <div style={{ display: 'flex', gap: '8px', marginLeft: '16px' }}>
-            <button 
-              onClick={() => setViewMode('2D')} 
-              style={{ 
-                padding: '6px 12px', 
-                background: viewMode === '2D' ? 'rgba(6, 182, 212, 0.2)' : 'rgba(255, 255, 255, 0.05)', 
-                color: viewMode === '2D' ? '#06b6d4' : '#94a3b8', 
-                border: `1px solid ${viewMode === '2D' ? 'rgba(6, 182, 212, 0.5)' : 'transparent'}`,
-                borderRadius: '6px',
-                cursor: 'pointer'
-              }}
+          <div className="view-mode-switcher" aria-label="Map view">
+            <button
+              type="button"
+              className={viewMode === '2D' ? 'is-active' : ''}
+              onClick={() => setViewMode('2D')}
             >
-              2D Strategic
+              <span>▦</span> Strategic map
             </button>
-            <button 
-              onClick={() => setViewMode('3D')} 
-              style={{ 
-                padding: '6px 12px', 
-                background: viewMode === '3D' ? 'rgba(6, 182, 212, 0.2)' : 'rgba(255, 255, 255, 0.05)', 
-                color: viewMode === '3D' ? '#06b6d4' : '#94a3b8', 
-                border: `1px solid ${viewMode === '3D' ? 'rgba(6, 182, 212, 0.5)' : 'transparent'}`,
-                borderRadius: '6px',
-                cursor: 'pointer'
-              }}
+            <button
+              type="button"
+              className={viewMode === '3D' ? 'is-active' : ''}
+              onClick={() => setViewMode('3D')}
             >
-              3D Tactical
+              <span>◇</span> Drone cameras
             </button>
           </div>
-          
-          <div className="status-indicator">
-            <div className={`status-dot ${connected ? 'status-live' : 'status-offline'}`}></div>
+
+          <div className="status-indicator" aria-label={connected ? 'Live connection' : 'Offline connection'}>
+            <div className={`status-dot ${connected ? 'status-live' : 'status-offline'}`} />
             <span>{connected ? 'LIVE' : 'OFFLINE'}</span>
           </div>
         </div>
       </header>
 
-      {/* Main Dashboard Layout */}
-      <div className="main-content">
-        
-        {/* Center: Map Viewport */}
-        <div className="map-container">
+      <main className="main-content">
+        <section className="map-container" aria-label={viewMode === '2D' ? 'Strategic response map' : 'Three dimensional tactical map'}>
+          <div className="map-header">
+            <div>
+              <span className="panel-kicker">{viewMode === '2D' ? 'Situation awareness' : 'Aerial reconnaissance'}</span>
+              <h2>{viewMode === '2D' ? 'Response grid' : 'Live city digital twin'}</h2>
+            </div>
+            <div className="map-meta">
+              <span className="map-meta-dot" />
+              {viewMode === '2D' ? 'Click a cell to target an event' : 'Select a drone for forward POV'}
+            </div>
+          </div>
+
           <div className="map-wrapper">
             {viewMode === '2D' ? (
-              <StrategicMap 
-                worldState={worldState} 
+              <StrategicMap
+                worldState={worldState}
                 agentTrails={agentTrails}
-                onCellClick={handleCellClick} 
+                selectedCell={selectedCell}
+                onCellClick={(r, c) => setSelectedCell({ r, c })}
               />
             ) : (
-              <TacticalView worldState={worldState} />
+              <TacticalView worldState={worldState} agentTrails={agentTrails} />
             )}
           </div>
-          
-          {/* Quick Disaster Controls Overlay */}
-          <div style={{ position: 'absolute', bottom: '16px', left: '16px', right: '16px', display: 'flex', gap: '16px', pointerEvents: 'none' }}>
-            <div className="glass-panel" style={{ padding: '12px', pointerEvents: 'auto', display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <span className="text-muted" style={{ fontSize: '0.85rem' }}>God Mode Injection:</span>
-              <span style={{ fontSize: '0.85rem', color: selectedCell ? '#fff' : '#666', fontFamily: 'var(--font-mono)' }}>
-                Target: {selectedCell ? `[${selectedCell.r}, ${selectedCell.c}]` : '[ Select cell on map ]'}
-              </span>
-              
-              <button 
-                disabled={!selectedCell}
-                onClick={() => { injectEarthquake(selectedCell.r, selectedCell.c, 7.5); setSelectedCell(null); }}
-                style={{ background: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.5)', padding: '6px 16px', borderRadius: '4px', cursor: selectedCell ? 'pointer' : 'not-allowed', opacity: selectedCell ? 1 : 0.5 }}
-              >
-                Earthquake
-              </button>
 
-              <button 
+          <div className="operation-bar">
+            <div className="target-readout">
+              <span className="target-icon">⌖</span>
+              <div>
+                <span className="panel-kicker">Event target</span>
+                <strong>{selectedCell ? `GRID ${selectedCell.r.toString().padStart(3, '0')} · ${selectedCell.c.toString().padStart(3, '0')}` : 'Select a map cell'}</strong>
+              </div>
+            </div>
+
+            <div className="disaster-actions">
+              <button
+                type="button"
+                className="action-button action-earthquake"
                 disabled={!selectedCell}
-                onClick={() => { injectFlood(selectedCell.r, selectedCell.c, 100); setSelectedCell(null); }}
-                style={{ background: 'rgba(6, 182, 212, 0.2)', color: '#06b6d4', border: '1px solid rgba(6, 182, 212, 0.5)', padding: '6px 16px', borderRadius: '4px', cursor: selectedCell ? 'pointer' : 'not-allowed', opacity: selectedCell ? 1 : 0.5 }}
+                onClick={() => injectAtSelection((r, c) => injectEarthquake(r, c, 7.5))}
               >
-                Flash Flood
+                <span>⌁</span> Earthquake
+              </button>
+              <button
+                type="button"
+                className="action-button action-flood"
+                disabled={!selectedCell}
+                onClick={() => injectAtSelection((r, c) => injectFlood(r, c, 100))}
+              >
+                <span>≈</span> Flash flood
               </button>
             </div>
-            
-            <div style={{ flex: 1 }}></div>
-            
-            <div className="glass-panel" style={{ padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-               <span className="text-muted mono" style={{ fontSize: '0.9rem' }}>
-                  {worldState ? `T+${worldState.timestep}` : 'T+0'}
-               </span>
-            </div>
+
+            <div className="world-clock mono">T+{worldState?.timestep ?? 0}</div>
           </div>
-        </div>
+        </section>
 
-        {/* Right: Stats & Feed */}
-        <div className="side-panel">
+        <aside className="side-panel" aria-label="Response telemetry">
           <StatsPanel worldState={worldState} events={events} />
-        </div>
-        
-      </div>
+        </aside>
+      </main>
     </div>
   );
 }
