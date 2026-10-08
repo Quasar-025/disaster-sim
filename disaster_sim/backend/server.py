@@ -158,41 +158,28 @@ def _ambulance_action(agent, world: WorldState) -> int:
                 agent.path = []
                 return Action.INTERACT
 
-    # Find best target from known victims
-    best_victim = None
-    best_dist = float("inf")
+    # Find all potential targets from known victims
+    valid_victims = []
     for vid in agent.local_victims_known:
         v = world.victims.get(vid)
         if v and v.is_alive and not v.rescued and (v.assigned_agent is None or v.assigned_agent == agent.id):
             dist = abs(v.row - r) + abs(v.col - c)
-            if dist < best_dist:
-                best_dist = dist
-                best_victim = v
+            valid_victims.append((dist, v))
+            
+    # Sort by distance
+    valid_victims.sort(key=lambda x: x[0])
 
-    if best_victim:
-        # If we changed targets, release the old one
-        if agent.assigned_victim and agent.assigned_victim != best_victim.id:
-            old_v = world.victims.get(agent.assigned_victim)
-            if old_v and old_v.assigned_agent == agent.id:
-                old_v.assigned_agent = None
-
-        # Assign self so other ambulances don't compete
-        best_victim.assigned_agent = agent.id
-        agent.assigned_victim = best_victim.id
+    for dist, best_victim in valid_victims:
         target = (best_victim.row, best_victim.col)
 
         # A* to victim — try cells within rescue_radius, sorted by distance to target
         path = None
-        
-        # Build a list of candidate destination cells
         candidates = []
         for dr in range(-rescue_radius, rescue_radius + 1):
             for dc in range(-rescue_radius, rescue_radius + 1):
                 if abs(dr) + abs(dc) <= rescue_radius:
                     adj = (target[0] + dr, target[1] + dc)
                     if world.is_passable(adj[0], adj[1], agent.agent_type):
-                        # Sort by distance to current position to find shortest path overall, 
-                        # or just append
                         candidates.append(adj)
         
         # Sort candidates by distance to the ambulance's current position to minimize travel
@@ -206,7 +193,17 @@ def _ambulance_action(agent, world: WorldState) -> int:
                 break
 
         if path is not None:
+            # We found a reachable victim!
+            if agent.assigned_victim and agent.assigned_victim != best_victim.id:
+                old_v = world.victims.get(agent.assigned_victim)
+                if old_v and old_v.assigned_agent == agent.id:
+                    old_v.assigned_agent = None
+
+            # Assign self so other ambulances don't compete
+            best_victim.assigned_agent = agent.id
+            agent.assigned_victim = best_victim.id
             agent.path = path
+            
             if agent.path: # path length > 0
                 next_r, next_c = agent.path[0]
                 ddr, ddc = next_r - r, next_c - c
@@ -220,17 +217,9 @@ def _ambulance_action(agent, world: WorldState) -> int:
                     return Action.RIGHT
             else:
                 # Path is [], meaning we are already at a valid cell! 
-                # This should have been caught by the nearby check, but just in case:
                 return Action.INTERACT
 
-    # --- No target — random walk on passable terrain ---
-    directions = [Action.UP, Action.DOWN, Action.LEFT, Action.RIGHT]
-    random.shuffle(directions)
-    for d in directions:
-        dr, dc = {Action.UP: (-1, 0), Action.DOWN: (1, 0),
-                  Action.LEFT: (0, -1), Action.RIGHT: (0, 1)}[d]
-        if world.is_passable(r + dr, c + dc, agent.agent_type):
-            return d
+    # --- No target — stay still instead of random vibrating ---
     return Action.STAY
 
 
@@ -323,7 +312,9 @@ class SimRunner:
 
                 elif agent.agent_type == "ambulance":
                     action = _ambulance_action(agent, self.world)
-                    self.physics.step(agent.id, action)
+                    success = self.physics.step(agent.id, action)
+                    if not success and action != Action.STAY and hasattr(agent, 'path'):
+                        agent.path = []
 
                 elif agent.agent_type == "traffic_light":
                     pass  # Handled by coordinator

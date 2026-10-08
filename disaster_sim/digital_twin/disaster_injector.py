@@ -6,6 +6,7 @@ import numpy as np
 
 from disaster_sim.digital_twin.city_config import Terrain
 from disaster_sim.digital_twin.world_state import WorldState
+from disaster_sim.routing.astar import astar_path
 
 
 class DisasterInjector:
@@ -95,8 +96,8 @@ class DisasterInjector:
             
             terrain = self.world.terrain_at(r, c)
             
-            # Water cannot overwrite intact buildings (for now) but fills roads and empty space
-            if terrain not in (Terrain.BUILDING, Terrain.BUILDING_DAMAGED, Terrain.WATER):
+            # Water cannot overwrite intact buildings, hospitals, or roads (to preserve paths)
+            if terrain not in (Terrain.BUILDING, Terrain.BUILDING_DAMAGED, Terrain.WATER, Terrain.HOSPITAL, Terrain.ROAD):
                 self.world.grid[r, c] = Terrain.WATER.value
                 cells_flooded += 1
                 

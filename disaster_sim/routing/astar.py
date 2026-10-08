@@ -26,6 +26,15 @@ def astar_path(
     # If the goal is not passable, we can't reach it
     if not world.is_passable(goal[0], goal[1], agent_type):
         return None
+        
+    occupied_cells = set()
+    for other in world.active_agents:
+        if other.spec.movement_type != "aerial":
+            occupied_cells.add(other.grid_pos)
+            
+    # Remove start and goal from occupied cells so we don't block ourselves or our destination
+    occupied_cells.discard(start)
+    occupied_cells.discard(goal)
 
     frontier = []
     heapq.heappush(frontier, (0, start))
@@ -42,6 +51,9 @@ def astar_path(
         for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
             next_node = (r + dr, c + dc)
             if not world.is_passable(next_node[0], next_node[1], agent_type):
+                continue
+                
+            if next_node in occupied_cells:
                 continue
                 
             new_cost = cost_so_far[current] + 1.0  # Uniform cost for grid steps

@@ -177,7 +177,7 @@ AGENT_TYPES: dict[str, AgentTypeSpec] = {
         can_rescue=True,
         can_clear_debris=False,
         can_transport=True,
-        terrain_passable=frozenset({"EMPTY", "ROAD", "DEBRIS", "HOSPITAL", "CHARGING_STATION", "PARK", "BUILDING", "WATER", "BUILDING_DAMAGED", "FIRE"}),
+        terrain_passable=frozenset({"EMPTY", "ROAD", "DEBRIS", "HOSPITAL", "CHARGING_STATION", "PARK"}),
     ),
     "boat": AgentTypeSpec(
         name="boat",
